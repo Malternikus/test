@@ -1,0 +1,2344 @@
+<roblox version="4">
+  <Item class="ReplicatedStorage" referent="0">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="1">
+      <Properties>
+        <string name="Name">GliderShared</string>
+      </Properties>
+      <Item class="ModuleScript" referent="2">
+        <Properties>
+          <string name="Name">Config</string>
+          <string name="Source"><![CDATA[--!strict
+-- Config (ModuleScript)
+-- Ort: ReplicatedStorage > GliderShared > Config
+--
+-- Zentrale Stelle für alle Tuning-Werte. Hier drehen, testen, wieder drehen.
+-- Winkel sind in Grad, Geschwindigkeiten in Studs pro Sekunde.
+
+local Config = {}
+
+-------------------------------------------------------------------------------
+-- FLUG
+-------------------------------------------------------------------------------
+Config.Flight = {
+	-- Grundgeschwindigkeit im Geradeausflug
+	BaseSpeed = 95,
+	-- Bonus beim Sturzflug (S) / Abzug beim Steigen (W), skaliert mit dem Pitch
+	DiveSpeedBonus = 40,
+	ClimbSpeedPenalty = 20,
+	MinSpeed = 60,
+	MaxSpeed = 140,
+	-- Wie schnell sich die Geschwindigkeit an den Zielwert annähert (höher = direkter)
+	SpeedResponse = 1.6,
+
+	-- Lenken (A/D): maximale Drehrate in Grad pro Sekunde
+	MaxYawRate = 62,
+	-- Maximale sichtbare Schräglage beim Lenken
+	MaxBankAngle = 42,
+	-- Hoch/Runter (W/S): maximaler Nick-Winkel
+	MaxPitchAngle = 32,
+	-- Wie stark der Gleiter beim Steigen/Sinken sichtbar nickt (Anteil vom Flugwinkel)
+	VisualPitchFactor = 0.7,
+
+	-- TRÄGHEIT / WEICHHEIT (höher = reagiert schneller, niedriger = träger)
+	-- Wie schnell der Eingabewert dem Tastendruck folgt
+	SteerResponse = 4.5,
+	PitchResponse = 4.0,
+	-- Wie schnell sich Schräglage und Nicken visuell einstellen
+	BankResponse = 5.0,
+	PitchVisualResponse = 5.0,
+	-- Wie schnell die Flugbahn der Blickrichtung folgt (leichtes "Nachschieben")
+	VelocityResponse = 7.0,
+
+	-- Leichtes Absinken im Geradeausflug (Gleiter-Gefühl). 0 = aus
+	SinkRate = 2,
+
+	-- Brems-Dauer nach dem Ziel (Sekunden)
+	FinishBrakeTime = 1.5,
+}
+
+-------------------------------------------------------------------------------
+-- EINGABE
+-------------------------------------------------------------------------------
+Config.Input = {
+	-- true = W/Stick nach vorne lässt den Gleiter sinken (Flugzeug-Stil)
+	InvertPitch = false,
+	GamepadDeadzone = 0.15,
+}
+
+-------------------------------------------------------------------------------
+-- KAMERA
+-------------------------------------------------------------------------------
+Config.Camera = {
+	-- Abstand hinter / über dem Gleiter
+	Distance = 17,
+	Height = 5.5,
+	-- Bei hoher Geschwindigkeit etwas weiter zurück (Geschwindigkeitsgefühl)
+	ExtraDistanceAtMaxSpeed = 5,
+	-- Punkt vor dem Gleiter, auf den die Kamera schaut
+	LookAhead = 30,
+	-- Verzögerung der Position (höher = enger am Spieler, niedriger = weicher)
+	PositionResponse = 9,
+	-- Verzögerung der Rotation
+	RotationResponse = 7,
+	-- Wie viel von der Schräglage die Kamera mitmacht (0 = gar nicht, 1 = voll)
+	RollFactor = 0.3,
+	-- Wie viel vom Nicken die Kamera mitmacht
+	PitchFactor = 0.5,
+
+	-- FOV-Effekt
+	BaseFOV = 70,
+	MaxFOVBoost = 12,
+	FOVResponse = 3,
+
+	-- Kamera-Wackeln beim Crash
+	CrashShakeStrength = 0.6,
+	CrashShakeDuration = 0.35,
+}
+
+-------------------------------------------------------------------------------
+-- CRASH / KOLLISION
+-------------------------------------------------------------------------------
+Config.Crash = {
+	-- Kollisionsbox relativ zum HumanoidRootPart (Breite, Höhe, Tiefe)
+	-- Etwas kleiner als das sichtbare Modell = fairer
+	BoxSize = Vector3.new(11, 7.5, 2.5),
+	BoxOffset = Vector3.new(0, 1.4, 0),
+	-- Zusätzlicher Blick nach vorne in Studs (verhindert "durch die Wand ruckeln")
+	Lookahead = 1.5,
+
+	-- Wie lange der Crash sichtbar ist, bevor zurückgesetzt wird
+	RespawnDelay = 1.1,
+	-- Wie lange nach dem Zurücksetzen geschwebt wird, bevor es weitergeht
+	FreezeAfterRespawn = 1.0,
+
+	-- Sicherheitsgrenzen der Map (Absturz bei Über-/Unterschreitung)
+	MinAltitude = 2,
+	MaxAltitude = 165,
+}
+
+-------------------------------------------------------------------------------
+-- RUN
+-------------------------------------------------------------------------------
+Config.Run = {
+	CountdownSeconds = 3,
+	-- Taste für schnellen Neustart (zusätzlich zum Reset-Button)
+	RestartKey = Enum.KeyCode.R,
+}
+
+-------------------------------------------------------------------------------
+-- EFFEKTE
+-------------------------------------------------------------------------------
+Config.Effects = {
+	-- Kleine Wind-Partikel vor der Kamera für das Geschwindigkeitsgefühl
+	SpeedParticlesEnabled = true,
+	SpeedParticlesMaxRate = 90,
+}
+
+-------------------------------------------------------------------------------
+-- NAMEN (gemeinsam von Server und Client genutzt)
+-------------------------------------------------------------------------------
+Config.Names = {
+	MapModel = "GliderMap",
+	SolidFolder = "Solid", -- alles hier drin führt zum Crash
+	DecorFolder = "Decor", -- nur Optik, keine Kollision
+	TrackData = "GliderTrackData", -- in ReplicatedStorage, Checkpoint-Daten
+	GliderModel = "Glider",
+	CollisionGroup = "GliderPlayers",
+}
+
+return Config
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="3">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="Script" referent="4">
+      <Properties>
+        <string name="Name">GliderServer</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[-- GliderServer (Script)
+-- Ort: ServerScriptService > GliderServer
+--
+-- Aufgaben des Servers im Prototyp:
+--   1. Teststrecke bauen (nur zur Laufzeit, die Place-Datei bleibt unverändert)
+--   2. Kollisionsgruppe registrieren (Spieler kollidieren physikalisch nicht mit
+--      der Map; Crashes werden vom Client per Blockcast erkannt)
+--   3. Jedem Charakter den Gleiter anbauen
+--
+-- Die eigentliche Flugsteuerung läuft auf dem Client (für direkte, flüssige
+-- Steuerung). Der Client besitzt seinen Charakter physikalisch, daher wird die
+-- Bewegung automatisch zum Server repliziert.
+
+local Players = game:GetService("Players")
+local PhysicsService = game:GetService("PhysicsService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("GliderShared"):WaitForChild("Config"))
+local TrackLayout = require(script.TrackLayout)
+local GliderRig = require(script.GliderRig)
+
+-- 1) Kollisionsgruppe ---------------------------------------------------------
+local GROUP = Config.Names.CollisionGroup
+local ok, err = pcall(function()
+	PhysicsService:RegisterCollisionGroup(GROUP)
+	PhysicsService:CollisionGroupSetCollidable(GROUP, "Default", false)
+	PhysicsService:CollisionGroupSetCollidable(GROUP, GROUP, false)
+end)
+if not ok then
+	warn("[GliderServer] Kollisionsgruppe konnte nicht angelegt werden:", err)
+end
+
+-- 2) Map bauen ----------------------------------------------------------------
+-- Die Standard-Baseplate etwas absenken, damit sie nicht mit unserem Boden flackert.
+local baseplate = workspace:FindFirstChild("Baseplate")
+if baseplate and baseplate:IsA("BasePart") then
+	baseplate.CFrame = baseplate.CFrame - Vector3.new(0, 30, 0)
+end
+-- Andere Spawns deaktivieren, damit alle auf der Startklippe erscheinen.
+for _, inst in workspace:GetDescendants() do
+	if inst:IsA("SpawnLocation") then
+		inst.Enabled = false
+	end
+end
+
+local startTime = os.clock()
+local map = TrackLayout.Build()
+print(string.format(
+	"[GliderServer] Teststrecke gebaut: %d Parts, Länge %d Studs (%.1f ms)",
+	map:GetAttribute("PartCount") or 0,
+	map:GetAttribute("TrackLength") or 0,
+	(os.clock() - startTime) * 1000
+))
+
+-- 3) Gleiter an Charaktere ----------------------------------------------------
+local function onCharacterAdded(player: Player, character: Model)
+	GliderRig.Attach(character)
+	-- Falls das Avatar-Aussehen später nachlädt, Arme erneut ausrichten
+	task.delay(1, function()
+		if character.Parent then
+			GliderRig.PoseArms(character)
+		end
+	end)
+end
+
+local function onPlayerAdded(player: Player)
+	player.CharacterAdded:Connect(function(character)
+		onCharacterAdded(player, character)
+	end)
+	player.CharacterAppearanceLoaded:Connect(function(character)
+		GliderRig.PoseArms(character)
+	end)
+	if player.Character then
+		onCharacterAdded(player, player.Character)
+	end
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+for _, player in Players:GetPlayers() do
+	onPlayerAdded(player)
+end
+]]></string>
+      </Properties>
+      <Item class="ModuleScript" referent="5">
+        <Properties>
+          <string name="Name">GliderRig</string>
+          <string name="Source"><![CDATA[-- GliderRig (ModuleScript)
+-- Ort: ServerScriptService > GliderServer > GliderRig
+--
+-- Baut ein einfaches Hängegleiter-Modell aus Parts und schweißt es an den
+-- HumanoidRootPart. Läuft auf dem Server, damit es später auch andere Spieler
+-- sehen. Alle Teile sind Massless und ohne Kollision -> keine Physik-Kosten.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("GliderShared"):WaitForChild("Config"))
+
+local SAIL_COLOR = Color3.fromRGB(255, 120, 30)
+local SAIL_COLOR_2 = Color3.fromRGB(255, 200, 60)
+local FRAME_COLOR = Color3.fromRGB(45, 45, 50)
+
+-- Maße (relativ zum HumanoidRootPart, vorne = -Z)
+local SPAN = 14 -- Spannweite
+local CHORD = 7 -- Länge von Nase bis Hinterkante
+local SAIL_Y = 5.8
+local SAIL_Z = -1.0 -- Flächenschwerpunkt liegt ungefähr über dem Piloten
+local BAR_Y = 3.3
+local BAR_Z = -1.0
+
+local GliderRig = {}
+
+local function setupPart(part: BasePart, color: Color3, material: Enum.Material?)
+	part.Anchored = false
+	part.Massless = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.Color = color
+	part.Material = material or Enum.Material.SmoothPlastic
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+end
+
+local function attach(root: BasePart, part: BasePart, offset: CFrame, parent: Instance)
+	part.CFrame = root.CFrame * offset
+	local weld = Instance.new("Weld")
+	weld.Part0 = root
+	weld.Part1 = part
+	weld.C0 = offset
+	weld.C1 = CFrame.identity
+	weld.Parent = part
+	part.Parent = parent
+end
+
+-- Dünnes Rohr zwischen zwei Punkten (im Raum des RootParts)
+local function rod(root: BasePart, parent: Instance, a: Vector3, b: Vector3, thickness: number)
+	local part = Instance.new("Part")
+	setupPart(part, FRAME_COLOR, Enum.Material.Metal)
+	part.Size = Vector3.new(thickness, thickness, (b - a).Magnitude)
+	part.Name = "Rod"
+	attach(root, part, CFrame.lookAt((a + b) / 2, b), parent)
+end
+
+local function buildGlider(root: BasePart): Model
+	local model = Instance.new("Model")
+	model.Name = Config.Names.GliderModel
+
+	-- Segel: zwei flache Keile ergeben ein Delta (Nase vorne, Spitzen hinten)
+	-- Ein WedgePart, um -90° um Z gedreht, liegt flach; seine Ecken passen dann
+	-- genau auf Nase / hintere Mitte / Flügelspitze.
+	for side = -1, 1, 2 do
+		local wedge = Instance.new("WedgePart")
+		setupPart(wedge, side < 0 and SAIL_COLOR or SAIL_COLOR_2, Enum.Material.Fabric)
+		wedge.Name = side < 0 and "SailLeft" or "SailRight"
+		wedge.Size = Vector3.new(0.3, SPAN / 2, CHORD)
+		local offset = CFrame.new(side * SPAN / 4, SAIL_Y, SAIL_Z) * CFrame.Angles(0, 0, -side * math.rad(90))
+		attach(root, wedge, offset, model)
+	end
+
+	-- Rahmen: Kiel, Querrohr, A-Rahmen mit Steuerbügel, Aufhängung
+	local hang = Vector3.new(0, SAIL_Y - 0.3, SAIL_Z + 0.8)
+	rod(root, model, Vector3.new(0, SAIL_Y - 0.2, SAIL_Z - CHORD / 2), Vector3.new(0, SAIL_Y - 0.2, SAIL_Z + CHORD / 2 + 0.3), 0.3)
+	rod(root, model, Vector3.new(-SPAN / 2 + 0.8, SAIL_Y - 0.25, SAIL_Z + 1.2), Vector3.new(SPAN / 2 - 0.8, SAIL_Y - 0.25, SAIL_Z + 1.2), 0.25)
+	local barLeft = Vector3.new(-1.7, BAR_Y, BAR_Z)
+	local barRight = Vector3.new(1.7, BAR_Y, BAR_Z)
+	rod(root, model, hang, barLeft, 0.2)
+	rod(root, model, hang, barRight, 0.2)
+	rod(root, model, barLeft, barRight, 0.25)
+	rod(root, model, hang, Vector3.new(0, 1.4, 0.35), 0.15) -- Gurt zum Piloten
+
+	return model
+end
+
+-- Arme nach oben an den Steuerbügel (nur R15). Wird ggf. mehrfach aufgerufen,
+-- weil das Avatar-Aussehen die Gelenke beim Laden neu erzeugen kann.
+local function poseArms(character: Model)
+	for _, info in { { "RightUpperArm", "RightShoulder" }, { "LeftUpperArm", "LeftShoulder" } } do
+		local arm = character:FindFirstChild(info[1])
+		local motor = arm and arm:FindFirstChild(info[2])
+		if motor and motor:IsA("Motor6D") and not motor:GetAttribute("GliderPosed") then
+			motor.C0 = motor.C0 * CFrame.Angles(math.rad(165), 0, 0)
+			motor:SetAttribute("GliderPosed", true)
+		end
+	end
+end
+
+function GliderRig.Attach(character: Model)
+	local root = character:WaitForChild("HumanoidRootPart", 10)
+	if not root or not root:IsA("BasePart") then
+		warn("[GliderRig] Kein HumanoidRootPart gefunden")
+		return
+	end
+
+	local old = character:FindFirstChild(Config.Names.GliderModel)
+	if old then
+		old:Destroy()
+	end
+
+	local glider = buildGlider(root)
+	glider.Parent = character
+	poseArms(character)
+end
+
+function GliderRig.PoseArms(character: Model)
+	poseArms(character)
+end
+
+return GliderRig
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="6">
+        <Properties>
+          <string name="Name">MapBuilder</string>
+          <string name="Source"><![CDATA[-- MapBuilder (ModuleScript)
+-- Ort: ServerScriptService > GliderServer > MapBuilder
+--
+-- Kleiner "Baukasten" für die Teststrecke. Die Strecke wird entlang eines
+-- Cursors (CFrame) gebaut: Jeder Abschnitt startet am aktuellen Cursor und
+-- schiebt ihn danach nach vorne. Lokale Koordinaten in einem Abschnitt:
+--   x = links (-) / rechts (+), y = Höhe über dem Boden, d = Distanz nach vorne
+--
+-- Alle Teile in "Solid" lösen einen Crash aus. Teile in "Decor" sind nur Optik.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("GliderShared"):WaitForChild("Config"))
+
+local WALL_THICKNESS = 20
+local FLOOR_THICKNESS = 4
+local WALL_HEIGHT = 200 -- höher als Config.Crash.MaxAltitude, damit man nicht drüber kommt
+local RIB_SPACING = 45 -- Abstand der Wandrippen (Geschwindigkeitsgefühl)
+local STRIPE_SPACING = 60 -- Abstand der Bodenstreifen
+
+local MapBuilder = {}
+MapBuilder.__index = MapBuilder
+
+export type SectionStyle = {
+	wallColor: Color3?,
+	floorColor: Color3?,
+	wallMaterial: Enum.Material?,
+	floorMaterial: Enum.Material?,
+	ribColor: Color3?,
+	stripeColor: Color3?,
+}
+
+local DEFAULT_STYLE = {
+	wallColor = Color3.fromRGB(110, 106, 100),
+	floorColor = Color3.fromRGB(86, 120, 70),
+	wallMaterial = Enum.Material.Slate,
+	floorMaterial = Enum.Material.Grass,
+	ribColor = Color3.fromRGB(80, 76, 72),
+	stripeColor = Color3.fromRGB(235, 235, 235),
+}
+
+local function styleValue(style: SectionStyle?, key: string): any
+	if style and (style :: any)[key] ~= nil then
+		return (style :: any)[key]
+	end
+	return (DEFAULT_STYLE :: any)[key]
+end
+
+function MapBuilder.new(startCFrame: CFrame?)
+	local self = setmetatable({}, MapBuilder)
+
+	self.model = Instance.new("Model")
+	self.model.Name = Config.Names.MapModel
+
+	self.solid = Instance.new("Folder")
+	self.solid.Name = Config.Names.SolidFolder
+	self.solid.Parent = self.model
+
+	self.decor = Instance.new("Folder")
+	self.decor.Name = Config.Names.DecorFolder
+	self.decor.Parent = self.model
+
+	self.cursor = startCFrame or CFrame.new()
+	self.distance = 0
+	self.lastWidth = nil :: number?
+	self.partCount = 0
+	self.rng = Random.new(1337) -- fester Seed = Map sieht jedes Mal gleich aus
+
+	self.startSpawn = nil :: CFrame?
+	self.checkpoints = {} :: { { gate: CFrame, size: Vector3, spawn: CFrame, label: string } }
+	self.finish = nil :: { gate: CFrame, size: Vector3 }?
+
+	return self
+end
+
+-------------------------------------------------------------------------------
+-- Basis-Bausteine
+-------------------------------------------------------------------------------
+
+function MapBuilder:_makePart(parent: Instance, cf: CFrame, size: Vector3, color: Color3, material: Enum.Material, solid: boolean, className: string?): BasePart
+	local part = Instance.new(className or "Part") :: BasePart
+	part.Anchored = true
+	part.Size = size
+	part.CFrame = cf
+	part.Color = color
+	part.Material = material
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.CanTouch = false -- wir nutzen kein Touched -> spart Physik-Arbeit
+	part.CanCollide = solid
+	part.CanQuery = solid -- nur Solid-Teile werden von den Crash-Abfragen gefunden
+	if not solid then
+		part.CastShadow = false
+	end
+	part.Parent = parent
+	self.partCount += 1
+	return part
+end
+
+function MapBuilder:Solid(cf: CFrame, size: Vector3, color: Color3, material: Enum.Material?): BasePart
+	return self:_makePart(self.solid, cf, size, color, material or Enum.Material.Slate, true)
+end
+
+function MapBuilder:Decor(cf: CFrame, size: Vector3, color: Color3, material: Enum.Material?, transparency: number?): BasePart
+	local part = self:_makePart(self.decor, cf, size, color, material or Enum.Material.SmoothPlastic, false)
+	part.Transparency = transparency or 0
+	return part
+end
+
+-- Block über Bereichsangaben im lokalen Raum eines Abschnitts (x, y, d).
+function MapBuilder:Box(base: CFrame, x0: number, x1: number, y0: number, y1: number, d0: number, d1: number, color: Color3, material: Enum.Material?, decor: boolean?): BasePart?
+	local sx, sy, sd = math.abs(x1 - x0), math.abs(y1 - y0), math.abs(d1 - d0)
+	if sx < 0.05 or sy < 0.05 or sd < 0.05 then
+		return nil
+	end
+	local cf = base * CFrame.new((x0 + x1) / 2, (y0 + y1) / 2, -(d0 + d1) / 2)
+	local size = Vector3.new(sx, sy, sd)
+	if decor then
+		return self:Decor(cf, size, color, material)
+	end
+	return self:Solid(cf, size, color, material)
+end
+
+-------------------------------------------------------------------------------
+-- Korridor (Boden + Wände)
+-------------------------------------------------------------------------------
+
+-- Baut ein Korridorstück zwischen d0 und d1 relativ zu "base".
+-- floorDrop senkt den Boden minimal ab (gegen Flackern bei überlappenden Kurvenstücken).
+function MapBuilder:_corridorPiece(base: CFrame, d0: number, d1: number, width: number, style: SectionStyle?, globalStart: number, floorDrop: number?)
+	local half = width / 2
+	local drop = floorDrop or 0
+	local wallColor = styleValue(style, "wallColor")
+	local wallMaterial = styleValue(style, "wallMaterial")
+
+	self:Box(base, -half - WALL_THICKNESS, half + WALL_THICKNESS, -FLOOR_THICKNESS - drop, -drop, d0, d1, styleValue(style, "floorColor"), styleValue(style, "floorMaterial"))
+	self:Box(base, -half - WALL_THICKNESS, -half, 0, WALL_HEIGHT, d0, d1, wallColor, wallMaterial)
+	self:Box(base, half, half + WALL_THICKNESS, 0, WALL_HEIGHT, d0, d1, wallColor, wallMaterial)
+
+	-- Wiederkehrende Details an Wand und Boden: geben dem Auge Referenzpunkte,
+	-- dadurch fühlt sich die Geschwindigkeit viel stärker an.
+	local ribColor = styleValue(style, "ribColor")
+	local stripeColor = styleValue(style, "stripeColor")
+
+	local firstRib = math.ceil((globalStart + d0) / RIB_SPACING) * RIB_SPACING - globalStart
+	local d = firstRib
+	while d < d1 do
+		local ribHeight = self.rng:NextNumber(70, 160)
+		self:Box(base, -half, -half + 1.5, 0, ribHeight, d, d + 6, ribColor, wallMaterial, true)
+		self:Box(base, half - 1.5, half, 0, ribHeight, d + 20, d + 26, ribColor, wallMaterial, true)
+		d += RIB_SPACING
+	end
+
+	local firstStripe = math.ceil((globalStart + d0) / STRIPE_SPACING) * STRIPE_SPACING - globalStart
+	d = firstStripe
+	while d < d1 do
+		self:Box(base, -half, half, 0, 0.15, d, d + 4, stripeColor, Enum.Material.SmoothPlastic, true)
+		d += STRIPE_SPACING
+	end
+end
+
+-- Wenn sich die Breite ändert, wird eine Querwand gebaut, damit keine Lücke
+-- zwischen breitem und schmalem Abschnitt entsteht.
+function MapBuilder:_widthTransition(base: CFrame, width: number, style: SectionStyle?)
+	local last = self.lastWidth
+	if last and math.abs(last - width) > 0.1 then
+		local inner = math.min(last, width) / 2
+		local outer = math.max(last, width) / 2 + WALL_THICKNESS
+		local color = styleValue(style, "wallColor")
+		local material = styleValue(style, "wallMaterial")
+		self:Box(base, -outer, -inner, 0, WALL_HEIGHT, -2, 2, color, material)
+		self:Box(base, inner, outer, 0, WALL_HEIGHT, -2, 2, color, material)
+	end
+	self.lastWidth = width
+end
+
+-- Gerader Abschnitt. Gibt die Start-CFrame des Abschnitts zurück, damit
+-- Hindernisse relativ dazu platziert werden können.
+function MapBuilder:Corridor(length: number, width: number, style: SectionStyle?): CFrame
+	local base = self.cursor
+	self:_widthTransition(base, width, style)
+	self:_corridorPiece(base, 0, length, width, style, self.distance)
+	self.cursor = base * CFrame.new(0, 0, -length)
+	self.distance += length
+	return base
+end
+
+-- Kurve aus mehreren kurzen Stücken. Positiver Winkel = Linkskurve.
+function MapBuilder:Turn(angleDeg: number, length: number, width: number, style: SectionStyle?)
+	local steps = math.max(3, math.ceil(math.abs(angleDeg) / 5))
+	local segLength = length / steps
+	local stepAngle = math.rad(angleDeg) / steps
+	-- Überlappung, damit an der Außenseite der Kurve keine Spalten entstehen
+	local overlap = (width / 2 + WALL_THICKNESS) * math.tan(math.abs(stepAngle)) + 2
+
+	self:_widthTransition(self.cursor, width, style)
+	for i = 1, steps do
+		self.cursor = self.cursor * CFrame.Angles(0, stepAngle / 2, 0)
+		self:_corridorPiece(self.cursor, -overlap / 2, segLength + overlap / 2, width, style, self.distance, (i % 2) * 0.1)
+		self.cursor = self.cursor * CFrame.new(0, 0, -segLength) * CFrame.Angles(0, stepAngle / 2, 0)
+		self.distance += segLength
+	end
+end
+
+-------------------------------------------------------------------------------
+-- Hindernisse
+-------------------------------------------------------------------------------
+
+-- Querwand mit Öffnung (= Tor). holeX/holeY = Mitte der Öffnung.
+-- Ist die Öffnung so breit wie der Korridor, entsteht ein waagerechter Schlitz.
+function MapBuilder:WallWithHole(base: CFrame, d: number, width: number, holeW: number, holeH: number, holeX: number, holeY: number, color: Color3, frameColor: Color3?, thickness: number?)
+	local t = thickness or 8
+	local half = width / 2
+	local h0 = math.max(-half, holeX - holeW / 2)
+	local h1 = math.min(half, holeX + holeW / 2)
+	local v0 = holeY - holeH / 2
+	local v1 = holeY + holeH / 2
+	local top = WALL_HEIGHT - 2
+	local dA, dB = d - t / 2, d + t / 2
+
+	self:Box(base, -half, h0, 0, top, dA, dB, color)
+	self:Box(base, h1, half, 0, top, dA, dB, color)
+	self:Box(base, h0, h1, 0, v0, dA, dB, color)
+	self:Box(base, h0, h1, v1, top, dA, dB, color)
+
+	-- Leuchtender Rahmen um die Öffnung (nur Optik)
+	local fc = frameColor or Color3.fromRGB(255, 200, 40)
+	local f = 1.5
+	local fA, fB = dA - 0.3, dB + 0.3
+	local fx0 = math.max(-half, h0 - f)
+	local fx1 = math.min(half, h1 + f)
+	self:Box(base, fx0, fx1, v1, v1 + f, fA, fB, fc, Enum.Material.Neon, true)
+	self:Box(base, fx0, fx1, math.max(0, v0 - f), v0, fA, fB, fc, Enum.Material.Neon, true)
+	if h0 > -half then
+		self:Box(base, h0 - f, h0, v0, v1, fA, fB, fc, Enum.Material.Neon, true)
+	end
+	if h1 < half then
+		self:Box(base, h1, h1 + f, v0, v1, fA, fB, fc, Enum.Material.Neon, true)
+	end
+end
+
+-- Säule über die volle Höhe.
+function MapBuilder:Pillar(base: CFrame, x: number, d: number, size: number, color: Color3)
+	self:Box(base, x - size / 2, x + size / 2, 0, WALL_HEIGHT - 2, d - size / 2, d + size / 2, color)
+end
+
+-------------------------------------------------------------------------------
+-- Start / Checkpoints / Ziel
+-------------------------------------------------------------------------------
+
+function MapBuilder:_sign(cf: CFrame, size: Vector3, text: string, color: Color3)
+	local part = self:Decor(cf, size, color, Enum.Material.SmoothPlastic)
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Back -- zeigt zum anfliegenden Spieler
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 10
+	gui.LightInfluence = 0
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = text
+	label.TextScaled = true
+	label.Font = Enum.Font.GothamBlack
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.TextStrokeTransparency = 0.3
+	label.Parent = gui
+	gui.Parent = part
+end
+
+-- Startpunkt in lokalen Koordinaten eines Abschnitts.
+function MapBuilder:Start(base: CFrame, d: number, height: number, platformTop: number)
+	self.startSpawn = base * CFrame.new(0, height, -d)
+
+	-- Eigener SpawnLocation auf der Startklippe, damit der Charakter nicht ins Leere fällt
+	local spawnCf = base * CFrame.new(0, platformTop + 0.5, -(d - 40))
+	local spawn = self:_makePart(self.decor, spawnCf, Vector3.new(12, 1, 12), Color3.fromRGB(60, 160, 255), Enum.Material.SmoothPlastic, true, "SpawnLocation") :: SpawnLocation
+	spawn.CanQuery = false
+	spawn.Neutral = true
+	spawn.Duration = 0
+	spawn.Name = "GliderSpawn"
+end
+
+function MapBuilder:Checkpoint(label: string, spawnHeight: number?)
+	local width = self.lastWidth or 100
+	local height = Config.Crash.MaxAltitude
+	local index = #self.checkpoints + 1
+	local gate = self.cursor * CFrame.new(0, height / 2, 0)
+
+	table.insert(self.checkpoints, {
+		gate = gate,
+		size = Vector3.new(width, height, 2),
+		spawn = self.cursor * CFrame.new(0, spawnHeight or 60, 0),
+		label = label,
+	})
+
+	-- Sichtbare, durchfliegbare Checkpoint-Fläche
+	local plane = self:Decor(gate, Vector3.new(width, height, 0.4), Color3.fromRGB(60, 200, 255), Enum.Material.Neon, 0.88)
+	plane.Name = "CheckpointGate_" .. index
+	local postColor = Color3.fromRGB(60, 200, 255)
+	self:Decor(self.cursor * CFrame.new(-width / 2 + 1, height / 2, 0), Vector3.new(2, height, 2), postColor, Enum.Material.Neon)
+	self:Decor(self.cursor * CFrame.new(width / 2 - 1, height / 2, 0), Vector3.new(2, height, 2), postColor, Enum.Material.Neon)
+end
+
+function MapBuilder:Finish(base: CFrame, d: number, width: number)
+	local height = Config.Crash.MaxAltitude
+	local gate = base * CFrame.new(0, height / 2, -d)
+	self.finish = { gate = gate, size = Vector3.new(width, height, 2) }
+
+	local plane = self:Decor(gate, Vector3.new(width, height, 0.4), Color3.fromRGB(255, 220, 60), Enum.Material.Neon, 0.85)
+	plane.Name = "FinishGate"
+	-- Schachbrett-Streifen am Boden
+	local squares = 12
+	local sq = width / squares
+	for i = 0, squares - 1 do
+		for row = 0, 1 do
+			local white = (i + row) % 2 == 0
+			local x0 = -width / 2 + i * sq
+			self:Box(base, x0, x0 + sq, 0, 0.2, d - sq + row * sq, d + row * sq, white and Color3.new(1, 1, 1) or Color3.new(0.1, 0.1, 0.1), Enum.Material.SmoothPlastic, true)
+		end
+	end
+	self:_sign(base * CFrame.new(0, height - 15, -d), Vector3.new(width * 0.6, 22, 1), "ZIEL", Color3.fromRGB(30, 30, 30))
+end
+
+-------------------------------------------------------------------------------
+-- Abschluss: Map in den Workspace, Streckendaten in ReplicatedStorage
+-------------------------------------------------------------------------------
+
+function MapBuilder:Finalize(): Model
+	assert(self.startSpawn, "MapBuilder: Start() wurde nicht aufgerufen")
+	assert(self.finish, "MapBuilder: Finish() wurde nicht aufgerufen")
+
+	self.model:SetAttribute("PartCount", self.partCount)
+	self.model:SetAttribute("TrackLength", self.distance)
+
+	-- Map immer komplett an den Client senden (falls StreamingEnabled an ist),
+	-- sonst fehlen weit entfernte Hindernisse für die Kollisionsabfrage.
+	pcall(function()
+		self.model.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
+	end)
+
+	local old = workspace:FindFirstChild(Config.Names.MapModel)
+	if old then
+		old:Destroy()
+	end
+	self.model.Parent = workspace
+
+	-- Streckendaten für den Client. Erst komplett aufbauen, dann parenten,
+	-- damit der Client alles auf einmal bekommt.
+	local data = Instance.new("Folder")
+	data.Name = Config.Names.TrackData
+	data:SetAttribute("CheckpointCount", #self.checkpoints)
+
+	local start = Instance.new("CFrameValue")
+	start.Name = "Start"
+	start.Value = self.startSpawn :: CFrame
+	start.Parent = data
+
+	local cpFolder = Instance.new("Folder")
+	cpFolder.Name = "Checkpoints"
+	cpFolder.Parent = data
+	for index, cp in self.checkpoints do
+		local entry = Instance.new("Folder")
+		entry.Name = "CP" .. index
+		entry:SetAttribute("Index", index)
+		entry:SetAttribute("Size", cp.size)
+		entry:SetAttribute("Label", cp.label)
+		local gate = Instance.new("CFrameValue")
+		gate.Name = "Gate"
+		gate.Value = cp.gate
+		gate.Parent = entry
+		local spawn = Instance.new("CFrameValue")
+		spawn.Name = "Spawn"
+		spawn.Value = cp.spawn
+		spawn.Parent = entry
+		entry.Parent = cpFolder
+	end
+
+	local finish = self.finish :: { gate: CFrame, size: Vector3 }
+	local finishEntry = Instance.new("Folder")
+	finishEntry.Name = "Finish"
+	finishEntry:SetAttribute("Size", finish.size)
+	local finishGate = Instance.new("CFrameValue")
+	finishGate.Name = "Gate"
+	finishGate.Value = finish.gate
+	finishGate.Parent = finishEntry
+	finishEntry.Parent = data
+
+	local oldData = ReplicatedStorage:FindFirstChild(Config.Names.TrackData)
+	if oldData then
+		oldData:Destroy()
+	end
+	data.Parent = ReplicatedStorage
+
+	return self.model
+end
+
+return MapBuilder
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="7">
+        <Properties>
+          <string name="Name">TrackLayout</string>
+          <string name="Source"><![CDATA[-- TrackLayout (ModuleScript)
+-- Ort: ServerScriptService > GliderServer > TrackLayout
+--
+-- Beschreibt die Teststrecke Abschnitt für Abschnitt. Hier kannst du die Map
+-- später am einfachsten ändern: Längen, Breiten, Tore, Säulen...
+--
+-- Koordinaten innerhalb eines Abschnitts (relativ zu "base"):
+--   x = links (-) / rechts (+) von der Mitte
+--   y = Höhe über dem Boden
+--   d = Distanz vom Abschnittsanfang nach vorne
+--
+-- Gesamtlänge ca. 7000 Studs, bei ~95-100 Studs/s also ungefähr 70 Sekunden.
+
+local MapBuilder = require(script.Parent.MapBuilder)
+
+local C = Color3.fromRGB
+
+-- Farben je Abschnitt, damit man beim Testen sofort weiß, wo man ist
+local STYLE_START = { wallColor = C(120, 115, 105), floorColor = C(90, 140, 75) }
+local STYLE_ROCK = { wallColor = C(95, 92, 88), floorColor = C(105, 110, 80), ribColor = C(70, 68, 66) }
+local STYLE_GATES = { wallColor = C(100, 110, 120), floorColor = C(80, 125, 90), ribColor = C(75, 85, 95) }
+local STYLE_CANYON = {
+	wallColor = C(170, 95, 60),
+	floorColor = C(190, 150, 100),
+	wallMaterial = Enum.Material.Sandstone,
+	floorMaterial = Enum.Material.Sand,
+	ribColor = C(140, 75, 45),
+}
+local STYLE_NARROW = { wallColor = C(85, 95, 85), floorColor = C(70, 110, 65), ribColor = C(60, 70, 60) }
+local STYLE_TUNNEL = { wallColor = C(70, 70, 78), floorColor = C(80, 80, 80), floorMaterial = Enum.Material.Concrete, ribColor = C(55, 55, 60) }
+local STYLE_UPDOWN = { wallColor = C(105, 100, 120), floorColor = C(95, 120, 85), ribColor = C(80, 75, 95) }
+local STYLE_FINAL = { wallColor = C(60, 55, 60), floorColor = C(70, 75, 65), wallMaterial = Enum.Material.Basalt, ribColor = C(110, 40, 40) }
+local STYLE_FINISH = { wallColor = C(120, 115, 105), floorColor = C(90, 140, 75) }
+
+local ROCK = C(100, 96, 90)
+local ROCK_DARK = C(75, 72, 70)
+local CANYON_ROCK = C(150, 85, 55)
+local GATE_WALL = C(115, 120, 130)
+local FINAL_ROCK = C(55, 50, 55)
+
+local TrackLayout = {}
+
+function TrackLayout.Build(origin: CFrame?): Model
+	-- Strecke startet etwas abseits vom Ursprung (Baseplate-Spawn liegt bei 0,0,0)
+	local b = MapBuilder.new(origin or CFrame.new(0, 0, -300))
+	local base: CFrame
+
+	---------------------------------------------------------------------------
+	-- 1) BREITER STARTBEREICH
+	---------------------------------------------------------------------------
+	local W = 260
+	base = b:Corridor(620, W, STYLE_START)
+	-- Rückwand + Startklippe
+	b:Box(base, -W / 2, W / 2, 0, 198, 0, 20, ROCK_DARK)
+	b:Box(base, -W / 2, W / 2, 0, 52, 20, 110, ROCK)
+	b:Start(base, 140, 60, 52)
+	-- Zwei Felstürme als Orientierung und ein großes, leichtes Einstiegstor
+	b:Pillar(base, -85, 300, 22, ROCK)
+	b:Pillar(base, 85, 300, 22, ROCK)
+	b:WallWithHole(base, 450, W, 110, 80, 0, 65, GATE_WALL)
+	b:Checkpoint("Felswände")
+
+	---------------------------------------------------------------------------
+	-- 2) GROSSE FELSWÄNDE (Slalom + Rechtskurve + Überhang)
+	---------------------------------------------------------------------------
+	W = 200
+	base = b:Corridor(320, W, STYLE_ROCK)
+	b:Box(base, -100, 15, 0, 198, 140, 180, ROCK) -- links (rechts vorbei)
+	b:Box(base, -15, 100, 0, 198, 260, 300, ROCK) -- rechts (links vorbei)
+	b:Turn(-30, 300, W, STYLE_ROCK)
+	base = b:Corridor(280, W, STYLE_ROCK)
+	b:Box(base, -100, 0, 0, 198, 60, 100, ROCK)
+	b:Box(base, 0, 100, 0, 198, 160, 200, ROCK)
+	b:Box(base, -100, 100, 110, 198, 235, 260, ROCK_DARK) -- Überhang: unten durch
+	b:Checkpoint("Tore")
+
+	---------------------------------------------------------------------------
+	-- 3) TORE: Wände mit Öffnungen, durch die man fliegen muss
+	---------------------------------------------------------------------------
+	W = 220
+	base = b:Corridor(900, W, STYLE_GATES)
+	--                   d    breite höhe   x    y
+	b:WallWithHole(base, 150, W, 60, 50, -40, 55, GATE_WALL)
+	b:WallWithHole(base, 330, W, 55, 45, 50, 85, GATE_WALL)
+	b:WallWithHole(base, 510, W, 50, 45, -20, 40, GATE_WALL)
+	b:WallWithHole(base, 690, W, 45, 40, 45, 95, GATE_WALL)
+	b:WallWithHole(base, 850, W, 45, 40, -10, 60, GATE_WALL)
+	b:Checkpoint("Schlucht")
+
+	---------------------------------------------------------------------------
+	-- 4) SCHLUCHT: schmal, Kurven, Felsvorsprünge, Felsbrücke
+	---------------------------------------------------------------------------
+	W = 100
+	b:Corridor(200, W, STYLE_CANYON)
+	b:Turn(35, 250, W, STYLE_CANYON)
+	base = b:Corridor(180, W, STYLE_CANYON)
+	b:Box(base, -50, -22, 0, 120, 50, 80, CANYON_ROCK) -- Vorsprung links unten
+	b:Box(base, 22, 50, 60, 198, 120, 150, CANYON_ROCK) -- Vorsprung rechts oben
+	b:Turn(-45, 300, W, STYLE_CANYON)
+	base = b:Corridor(220, W, STYLE_CANYON)
+	b:Box(base, -50, 50, 85, 110, 100, 125, CANYON_ROCK) -- Felsbrücke: drunter oder drüber
+	b:Checkpoint("Engstellen")
+
+	---------------------------------------------------------------------------
+	-- 5) ENGE PASSAGEN + HINDERNISSE LINKS/RECHTS
+	---------------------------------------------------------------------------
+	W = 140
+	base = b:Corridor(900, W, STYLE_NARROW)
+	-- Enge Stelle in der Mitte (50 breit)
+	b:Box(base, -70, -25, 0, 198, 120, 200, ROCK)
+	b:Box(base, 25, 70, 0, 198, 120, 200, ROCK)
+	-- Säulen-Slalom
+	b:Pillar(base, -30, 280, 16, ROCK_DARK)
+	b:Pillar(base, 30, 340, 16, ROCK_DARK)
+	b:Pillar(base, 0, 400, 16, ROCK_DARK)
+	-- Enge Passage links versetzt (Lücke x -55..-5)
+	b:Box(base, -70, -55, 0, 198, 480, 570, ROCK)
+	b:Box(base, -5, 70, 0, 198, 480, 570, ROCK)
+	-- Enge Passage rechts versetzt (Lücke x 5..50)
+	b:Box(base, -70, 5, 0, 198, 700, 790, ROCK)
+	b:Box(base, 50, 70, 0, 198, 700, 790, ROCK)
+	b:Pillar(base, 0, 860, 14, ROCK_DARK)
+	b:Checkpoint("Tunnel")
+
+	---------------------------------------------------------------------------
+	-- 6) KURZER TUNNEL (Innenraum 50 breit, Höhe 30..70)
+	---------------------------------------------------------------------------
+	W = 140
+	base = b:Corridor(520, W, STYLE_TUNNEL)
+	local t0, t1 = 130, 450
+	b:Box(base, -70, -25, 0, 198, t0, t1, ROCK_DARK)
+	b:Box(base, 25, 70, 0, 198, t0, t1, ROCK_DARK)
+	b:Box(base, -25, 25, 0, 30, t0, t1, ROCK_DARK)
+	b:Box(base, -25, 25, 70, 198, t0, t1, ROCK_DARK)
+	-- Im Tunnel: erst von oben (unten durch), dann von unten (oben drüber)
+	b:Box(base, -25, 25, 52, 70, 260, 272, C(200, 60, 50))
+	b:Box(base, -25, 25, 30, 48, 360, 372, C(200, 60, 50))
+	-- Leuchtstreifen im Tunnel (nur Optik) + ein paar Lichter
+	local stripe = C(120, 220, 255)
+	local d = t0 + 10
+	local n = 0
+	while d < t1 do
+		b:Box(base, -25, -24.4, 30, 70, d, d + 1.5, stripe, Enum.Material.Neon, true)
+		b:Box(base, 24.4, 25, 30, 70, d, d + 1.5, stripe, Enum.Material.Neon, true)
+		local ceiling = b:Box(base, -25, 25, 69.4, 70, d, d + 1.5, stripe, Enum.Material.Neon, true)
+		n += 1
+		if ceiling and n % 2 == 0 then
+			local light = Instance.new("PointLight")
+			light.Range = 35
+			light.Brightness = 1.5
+			light.Color = stripe
+			light.Parent = ceiling
+		end
+		d += 30
+	end
+	b:Checkpoint("Hoch & Runter")
+
+	---------------------------------------------------------------------------
+	-- 7) HOCH UND RUNTER: Wände mit waagerechten Schlitzen
+	---------------------------------------------------------------------------
+	W = 160
+	base = b:Corridor(950, W, STYLE_UPDOWN)
+	local slotHeight = 38
+	for _, slot in { { 150, 40 }, { 300, 100 }, { 450, 45 }, { 600, 105 }, { 730, 60 }, { 860, 95 } } do
+		b:WallWithHole(base, slot[1], W, W, slotHeight, 0, slot[2], GATE_WALL, C(255, 120, 40))
+	end
+	b:Checkpoint("Finale")
+
+	---------------------------------------------------------------------------
+	-- 8) SCHWIERIGER LETZTER ABSCHNITT
+	---------------------------------------------------------------------------
+	W = 150
+	base = b:Corridor(560, W, STYLE_FINAL)
+	local red = C(255, 70, 70)
+	b:WallWithHole(base, 150, W, 34, 30, -30, 50, FINAL_ROCK, red)
+	b:WallWithHole(base, 290, W, 32, 30, 25, 80, FINAL_ROCK, red)
+	b:Pillar(base, -15, 390, 14, FINAL_ROCK)
+	b:Pillar(base, 45, 390, 14, FINAL_ROCK)
+	b:WallWithHole(base, 490, W, 30, 28, 0, 45, FINAL_ROCK, red)
+	b:Checkpoint("Letzte Kurve")
+
+	b:Turn(40, 260, W, STYLE_FINAL)
+	base = b:Corridor(320, W, STYLE_FINAL)
+	b:WallWithHole(base, 80, W, W, 45, 0, 47.5, FINAL_ROCK, red, 20) -- dicker Schlitz
+	b:WallWithHole(base, 190, W, 30, 30, -30, 55, FINAL_ROCK, red)
+	b:WallWithHole(base, 300, W, 28, 26, 10, 70, FINAL_ROCK, red)
+
+	---------------------------------------------------------------------------
+	-- 9) ZIELBEREICH
+	---------------------------------------------------------------------------
+	W = 220
+	base = b:Corridor(380, W, STYLE_FINISH)
+	b:Finish(base, 40, W)
+	b:Box(base, -W / 2, W / 2, 0, 198, 360, 380, ROCK_DARK) -- Endwand
+
+	return b:Finalize()
+end
+
+return TrackLayout
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="StarterPlayer" referent="8">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+    </Properties>
+    <Item class="StarterPlayerScripts" referent="9">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+      <Item class="LocalScript" referent="10">
+        <Properties>
+          <string name="Name">GliderClient</string>
+          <string name="Source"><![CDATA[-- GliderClient (LocalScript)
+-- Ort: StarterPlayer > StarterPlayerScripts > GliderClient
+--
+-- Einstiegspunkt auf dem Client. Erstellt alle Systeme einmal und verbindet
+-- sie. Die eigentliche Logik steckt in den ModuleScripts darunter.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("GliderShared"):WaitForChild("Config"))
+local InputController = require(script.InputController)
+local CameraController = require(script.CameraController)
+local SpeedEffects = require(script.SpeedEffects)
+local HUD = require(script.HUD)
+local RunManager = require(script.RunManager)
+
+local player = Players.LocalPlayer
+
+-- Standard-Laufsteuerung abschalten (WASD soll nur den Gleiter lenken)
+local function disableDefaultControls()
+	local ok, err = pcall(function()
+		local playerModule = require(player:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule") :: ModuleScript) :: any
+		playerModule:GetControls():Disable()
+	end)
+	if not ok then
+		warn("[GliderClient] Standard-Steuerung konnte nicht deaktiviert werden:", err)
+	end
+end
+
+-- Warten, bis die Map komplett beim Client angekommen ist
+local function waitForMap(): (Model, Folder)
+	local trackData = ReplicatedStorage:WaitForChild(Config.Names.TrackData) :: Folder
+	local map = workspace:WaitForChild(Config.Names.MapModel) :: Model
+	local expected = map:GetAttribute("PartCount") or 0
+	local deadline = os.clock() + 15
+	while os.clock() < deadline do
+		local count = 0
+		for _, inst in map:GetDescendants() do
+			if inst:IsA("BasePart") then
+				count += 1
+			end
+		end
+		if count >= expected then
+			break
+		end
+		task.wait(0.25)
+	end
+	return map, trackData
+end
+
+disableDefaultControls()
+local map, trackData = waitForMap()
+
+local runManager
+local hud = HUD.new(function()
+	if runManager then
+		runManager:StartRun()
+	end
+end)
+local input = InputController.new(function()
+	if runManager then
+		runManager:StartRun()
+	end
+end)
+local camera = CameraController.new()
+local effects = SpeedEffects.new()
+
+runManager = RunManager.new({
+	map = map,
+	trackData = trackData,
+	hud = hud,
+	input = input,
+	camera = camera,
+	effects = effects,
+})
+
+local function onCharacterAdded(character: Model)
+	character:WaitForChild("HumanoidRootPart")
+	character:WaitForChild("Humanoid")
+	-- Der Gleiter wird vom Server angebaut; kurz darauf warten
+	character:WaitForChild(Config.Names.GliderModel, 5)
+	disableDefaultControls()
+	runManager:AttachCharacter(character)
+end
+
+player.CharacterRemoving:Connect(function()
+	runManager:DetachCharacter()
+end)
+player.CharacterAdded:Connect(onCharacterAdded)
+if player.Character then
+	task.spawn(onCharacterAdded, player.Character)
+end
+]]></string>
+        </Properties>
+        <Item class="ModuleScript" referent="11">
+          <Properties>
+            <string name="Name">CameraController</string>
+            <string name="Source"><![CDATA[-- CameraController (ModuleScript)
+-- Ort: StarterPlayerScripts > GliderClient > CameraController
+--
+-- Verfolgerkamera hinter dem Gleiter.
+--  * Die Kamera folgt der Position exakt (kein "Zurückfallen" bei Tempo),
+--    aber ihre Ausrichtung (Kurs, Nicken, Rollen) folgt leicht verzögert.
+--    Dadurch schwingt sie in Kurven weich mit, ohne zu wackeln.
+--  * Höheres Tempo -> etwas mehr Abstand + größeres FOV.
+
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("GliderShared"):WaitForChild("Config"))
+local CAM = Config.Camera
+local F = Config.Flight
+
+local RENDER_NAME = "GliderCamera"
+
+local CameraController = {}
+CameraController.__index = CameraController
+
+local function smoothAlpha(response: number, dt: number): number
+	return 1 - math.exp(-response * dt)
+end
+
+function CameraController.new()
+	local self = setmetatable({}, CameraController)
+	self.camera = workspace.CurrentCamera
+	self.target = nil :: any -- FlightController
+	self.yaw = 0
+	self.pitch = 0
+	self.roll = 0
+	self.speedFraction = 0
+	self.fov = CAM.BaseFOV
+	self.shakeTime = 0
+	self.shakeStrength = 0
+	self.shakeDuration = 1
+	self.rng = Random.new()
+
+	RunService:BindToRenderStep(RENDER_NAME, Enum.RenderPriority.Camera.Value + 1, function(dt)
+		self:_update(dt)
+	end)
+	return self
+end
+
+function CameraController:SetTarget(flight)
+	self.target = flight
+	self:Snap()
+end
+
+-- Glättung zurücksetzen (z.B. nach Respawn), damit die Kamera nicht "rüberschwenkt"
+function CameraController:Snap()
+	local flight = self.target
+	if not flight then
+		return
+	end
+	self.yaw = flight:GetYaw()
+	self.pitch = flight:GetPitch()
+	self.roll = flight:GetBank()
+	self.speedFraction = 0
+end
+
+function CameraController:Shake(strength: number?, duration: number?)
+	self.shakeStrength = strength or CAM.CrashShakeStrength
+	self.shakeTime = duration or CAM.CrashShakeDuration
+	self.shakeDuration = self.shakeTime
+end
+
+function CameraController:_update(dt: number)
+	local flight = self.target
+	if not flight or not flight:IsValid() then
+		return
+	end
+	local camera = workspace.CurrentCamera
+	if camera.CameraType ~= Enum.CameraType.Scriptable then
+		camera.CameraType = Enum.CameraType.Scriptable
+	end
+
+	-- Verzögert nachgeführte Ausrichtung
+	local rotAlpha = smoothAlpha(CAM.RotationResponse, dt)
+	self.yaw += (flight:GetYaw() - self.yaw) * rotAlpha
+	self.pitch += (flight:GetPitch() * CAM.PitchFactor - self.pitch) * rotAlpha
+	self.roll += (flight:GetBank() * CAM.RollFactor - self.roll) * rotAlpha
+
+	local speedFraction = math.clamp((flight:GetSpeed() - F.BaseSpeed) / (F.MaxSpeed - F.BaseSpeed), 0, 1)
+	self.speedFraction += (speedFraction - self.speedFraction) * smoothAlpha(CAM.FOVResponse, dt)
+
+	local basis = CFrame.Angles(0, self.yaw, 0) * CFrame.Angles(self.pitch, 0, 0)
+	local targetPos = flight:GetPosition() + Vector3.new(0, 2, 0)
+	local distance = CAM.Distance + CAM.ExtraDistanceAtMaxSpeed * self.speedFraction
+	local camPos = targetPos + basis:VectorToWorldSpace(Vector3.new(0, CAM.Height, distance))
+	local lookAt = targetPos + basis.LookVector * CAM.LookAhead
+
+	local cf = CFrame.lookAt(camPos, lookAt) * CFrame.Angles(0, 0, self.roll)
+
+	-- Kurzes Wackeln beim Crash
+	if self.shakeTime > 0 then
+		self.shakeTime -= dt
+		local k = math.max(self.shakeTime, 0) / (self.shakeDuration or 1)
+		local s = math.rad(self.shakeStrength * 4) * k
+		cf *= CFrame.Angles(self.rng:NextNumber(-s, s), self.rng:NextNumber(-s, s), self.rng:NextNumber(-s, s) * 0.5)
+	end
+
+	camera.CFrame = cf
+
+	-- FOV leicht erhöhen bei hohem Tempo
+	local targetFov = CAM.BaseFOV + CAM.MaxFOVBoost * self.speedFraction
+	self.fov += (targetFov - self.fov) * smoothAlpha(CAM.FOVResponse, dt)
+	camera.FieldOfView = self.fov
+end
+
+function CameraController:Destroy()
+	RunService:UnbindFromRenderStep(RENDER_NAME)
+end
+
+return CameraController
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="12">
+          <Properties>
+            <string name="Name">CheckpointSystem</string>
+            <string name="Source"><![CDATA[-- CheckpointSystem (ModuleScript)
+-- Ort: StarterPlayerScripts > GliderClient > CheckpointSystem
+--
+-- Liest die Checkpoint-Daten, die der Server in ReplicatedStorage ablegt.
+-- Statt Touched-Events wird pro Frame nur geprüft, ob die Linie zwischen
+-- letzter und aktueller Position die Fläche des NÄCHSTEN Checkpoints kreuzt.
+-- Das ist billig und funktioniert auch bei hohem Tempo zuverlässig.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("GliderShared"):WaitForChild("Config"))
+
+type Gate = {
+	cframe: CFrame,
+	size: Vector3,
+	spawn: CFrame?,
+	label: string?,
+	visual: BasePart?,
+}
+
+local REACHED_COLOR = Color3.fromRGB(80, 255, 120)
+local CROSS_MARGIN = 4
+
+local CheckpointSystem = {}
+CheckpointSystem.__index = CheckpointSystem
+
+local function findVisual(map: Model, name: string): BasePart?
+	local decor = map:FindFirstChild(Config.Names.DecorFolder)
+	local part = decor and decor:FindFirstChild(name)
+	if part and part:IsA("BasePart") then
+		return part
+	end
+	return nil
+end
+
+function CheckpointSystem.new(trackData: Folder, map: Model)
+	local self = setmetatable({}, CheckpointSystem)
+	self.start = (trackData:WaitForChild("Start") :: CFrameValue).Value
+	self.gates = {} :: { Gate }
+	self.current = 0 -- 0 = noch kein Checkpoint (Start)
+
+	local list = trackData:WaitForChild("Checkpoints"):GetChildren()
+	table.sort(list, function(a, b)
+		return (a:GetAttribute("Index") or 0) < (b:GetAttribute("Index") or 0)
+	end)
+	for _, entry in list do
+		local index = entry:GetAttribute("Index")
+		local visual = findVisual(map, "CheckpointGate_" .. tostring(index))
+		table.insert(self.gates, {
+			cframe = (entry:WaitForChild("Gate") :: CFrameValue).Value,
+			size = entry:GetAttribute("Size"),
+			spawn = (entry:WaitForChild("Spawn") :: CFrameValue).Value,
+			label = entry:GetAttribute("Label"),
+			visual = visual,
+		})
+	end
+
+	local finishEntry = trackData:WaitForChild("Finish")
+	self.finish = {
+		cframe = (finishEntry:WaitForChild("Gate") :: CFrameValue).Value,
+		size = finishEntry:GetAttribute("Size"),
+		visual = findVisual(map, "FinishGate"),
+	} :: Gate
+
+	self.originalColors = {} :: { [BasePart]: Color3 }
+	for _, gate in self.gates do
+		if gate.visual then
+			self.originalColors[gate.visual] = gate.visual.Color
+		end
+	end
+	return self
+end
+
+-- Kreuzt die Strecke a -> b die Fläche des Tores (in Flugrichtung)?
+local function crossed(gate: Gate, a: Vector3, b: Vector3): boolean
+	local la = gate.cframe:PointToObjectSpace(a)
+	local lb = gate.cframe:PointToObjectSpace(b)
+	-- Vor dem Tor ist lokales Z positiv, dahinter negativ (LookVector = -Z)
+	if la.Z > 0 and lb.Z <= 0 then
+		local t = la.Z / (la.Z - lb.Z)
+		local hit = la:Lerp(lb, t)
+		return math.abs(hit.X) <= gate.size.X / 2 + CROSS_MARGIN and math.abs(hit.Y) <= gate.size.Y / 2 + CROSS_MARGIN
+	end
+	return false
+end
+
+function CheckpointSystem:Reset()
+	self.current = 0
+	for part, color in self.originalColors do
+		part.Color = color
+	end
+end
+
+function CheckpointSystem:GetCount(): number
+	return #self.gates
+end
+
+function CheckpointSystem:GetCurrent(): number
+	return self.current
+end
+
+function CheckpointSystem:GetCurrentLabel(): string?
+	local gate = self.gates[self.current]
+	return gate and gate.label
+end
+
+function CheckpointSystem:GetStartCFrame(): CFrame
+	return self.start
+end
+
+function CheckpointSystem:GetRespawnCFrame(): CFrame
+	local gate = self.gates[self.current]
+	if gate and gate.spawn then
+		return gate.spawn
+	end
+	return self.start
+end
+
+-- Gibt "checkpoint", "finish" oder nil zurück.
+function CheckpointSystem:Update(previous: Vector3, current: Vector3): string?
+	local nextGate = self.gates[self.current + 1]
+	if nextGate then
+		if crossed(nextGate, previous, current) then
+			self.current += 1
+			if nextGate.visual then
+				nextGate.visual.Color = REACHED_COLOR
+			end
+			return "checkpoint"
+		end
+		return nil
+	end
+	if crossed(self.finish, previous, current) then
+		return "finish"
+	end
+	return nil
+end
+
+return CheckpointSystem
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="13">
+          <Properties>
+            <string name="Name">CrashSystem</string>
+            <string name="Source"><![CDATA[-- CrashSystem (ModuleScript)
+-- Ort: StarterPlayerScripts > GliderClient > CrashSystem
+--
+-- Kollisionserkennung per Blockcast: Eine Box in Größe des Gleiters wird pro
+-- Frame von der letzten Position entlang der Bewegung (plus etwas Vorausschau)
+-- geschoben. Trifft sie ein Teil aus Map/Solid, ist das ein Crash.
+-- Vorteile gegenüber Touched: kein "Durchtunneln" bei hohem Tempo, der Gleiter
+-- stoppt vor der Wand statt darin zu stecken, und nur EINE Abfrage pro Frame.
+--
+-- Mehrfach-Auslösung verhindert der RunManager (Crash nur im Zustand "Flying").
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("GliderShared"):WaitForChild("Config"))
+local CR = Config.Crash
+
+local CRASH_COLOR = Color3.fromRGB(255, 40, 40)
+
+local CrashSystem = {}
+CrashSystem.__index = CrashSystem
+
+function CrashSystem.new(map: Model)
+	local self = setmetatable({}, CrashSystem)
+	local solid = map:WaitForChild(Config.Names.SolidFolder)
+	self.params = RaycastParams.new()
+	self.params.FilterType = Enum.RaycastFilterType.Include
+	self.params.FilterDescendantsInstances = { solid }
+	self.gliderParts = {} :: { [BasePart]: Color3 }
+	return self
+end
+
+function CrashSystem:SetCharacter(character: Model)
+	table.clear(self.gliderParts)
+	local glider = character:FindFirstChild(Config.Names.GliderModel) or character:WaitForChild(Config.Names.GliderModel, 5)
+	if glider then
+		for _, part in glider:GetDescendants() do
+			if part:IsA("BasePart") then
+				self.gliderParts[part] = part.Color
+			end
+		end
+	end
+end
+
+-- Prüft die Bewegung von previous zur aktuellen Root-CFrame.
+-- Gibt (true, Grund) bei Crash zurück.
+function CrashSystem:Check(previous: Vector3, rootCFrame: CFrame, velocity: Vector3, dt: number): (boolean, string?)
+	local position = rootCFrame.Position
+
+	if position.Y < CR.MinAltitude then
+		return true, "Boden"
+	end
+	if position.Y > CR.MaxAltitude then
+		return true, "Zu hoch!"
+	end
+
+	local speed = velocity.Magnitude
+	local direction = (position - previous) + velocity * dt
+	if speed > 0.01 then
+		direction += velocity.Unit * CR.Lookahead
+	end
+	if direction.Magnitude < 0.01 then
+		return false, nil
+	end
+
+	local origin = CFrame.new(previous) * rootCFrame.Rotation * CFrame.new(CR.BoxOffset)
+	local result = workspace:Blockcast(origin, CR.BoxSize, direction, self.params)
+	if result then
+		return true, "Hindernis getroffen"
+	end
+	return false, nil
+end
+
+-- Kurze visuelle Rückmeldung am Gleiter
+function CrashSystem:PlayEffect(position: Vector3)
+	local explosion = Instance.new("Explosion")
+	explosion.Position = position
+	explosion.BlastRadius = 4
+	explosion.BlastPressure = 0
+	explosion.DestroyJointRadiusPercent = 0
+	explosion.ExplosionType = Enum.ExplosionType.NoCraters
+	explosion.Parent = workspace
+
+	for part in self.gliderParts do
+		if part.Parent then
+			part.Color = CRASH_COLOR
+		end
+	end
+end
+
+function CrashSystem:RestoreVisuals()
+	for part, color in self.gliderParts do
+		if part.Parent then
+			part.Color = color
+		end
+	end
+end
+
+return CrashSystem
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="14">
+          <Properties>
+            <string name="Name">FlightController</string>
+            <string name="Source"><![CDATA[-- FlightController (ModuleScript)
+-- Ort: StarterPlayerScripts > GliderClient > FlightController
+--
+-- Arcade-Flugmodell. Keine Aerodynamik, sondern ein paar weich geglättete Werte:
+--
+--   Eingabe (-1..1)  --geglättet-->  steer / climb
+--   steer  -> Drehrate (Yaw) + Schräglage (Bank, nur Optik)
+--   climb  -> Nick-Winkel (Pitch) -> Flugrichtung hoch/runter + Tempo-Änderung
+--   Flugrichtung * Tempo  --geglättet-->  Geschwindigkeit (leichte Trägheit)
+--
+-- Umgesetzt wird das mit zwei Physik-Constraints am HumanoidRootPart:
+--   LinearVelocity    -> setzt die Geschwindigkeit
+--   AlignOrientation  -> setzt die Ausrichtung (inkl. Neigung)
+-- Pro Frame werden nur deren Zielwerte geändert, das ist sehr günstig.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("GliderShared"):WaitForChild("Config"))
+local F = Config.Flight
+
+local FlightController = {}
+FlightController.__index = FlightController
+
+-- Bildraten-unabhängige Glättung: Anteil, um den man sich dem Ziel nähert
+local function smoothAlpha(response: number, dt: number): number
+	return 1 - math.exp(-response * dt)
+end
+
+local DISABLED_STATES = {
+	Enum.HumanoidStateType.Jumping,
+	Enum.HumanoidStateType.Freefall,
+	Enum.HumanoidStateType.FallingDown,
+	Enum.HumanoidStateType.Ragdoll,
+	Enum.HumanoidStateType.GettingUp,
+	Enum.HumanoidStateType.Climbing,
+	Enum.HumanoidStateType.Swimming,
+	Enum.HumanoidStateType.Seated,
+}
+
+function FlightController.new(character: Model)
+	local humanoid = character:WaitForChild("Humanoid") :: Humanoid
+	local root = character:WaitForChild("HumanoidRootPart") :: BasePart
+
+	local self = setmetatable({}, FlightController)
+	self.character = character
+	self.humanoid = humanoid
+	self.root = root
+
+	self.active = false
+	self.throttle = 1 -- 1 = normal, 0 = bremst bis zum Stillstand (Ziel)
+	self.yaw = 0 -- Kurs in Radiant (positiv = links)
+	self.pitch = 0 -- tatsächlicher Flugwinkel
+	self.bank = 0 -- sichtbare Schräglage
+	self.steer = 0 -- geglättete Eingabe links/rechts
+	self.climb = 0 -- geglättete Eingabe hoch/runter
+	self.speed = F.BaseSpeed
+	self.velocity = Vector3.zero
+
+	-- Humanoid ruhigstellen: kein Laufen, Springen, Fallen
+	humanoid.AutoRotate = false
+	humanoid.PlatformStand = true
+	for _, state in DISABLED_STATES do
+		humanoid:SetStateEnabled(state, false)
+	end
+
+	-- Standard-Animationen stoppen (Charakter soll ruhig am Gleiter hängen)
+	local animate = character:FindFirstChild("Animate")
+	if animate then
+		animate:Destroy()
+	end
+	local animator = humanoid:FindFirstChildOfClass("Animator")
+	if animator then
+		for _, track in animator:GetPlayingAnimationTracks() do
+			track:Stop(0)
+		end
+	end
+
+	-- Keine physikalische Kollision mit der Map (Crash-Erkennung übernimmt das)
+	for _, part in character:GetDescendants() do
+		if part:IsA("BasePart") then
+			pcall(function()
+				part.CollisionGroup = Config.Names.CollisionGroup
+			end)
+		end
+	end
+
+	local attachment = Instance.new("Attachment")
+	attachment.Name = "FlightAttachment"
+	attachment.Parent = root
+
+	local linear = Instance.new("LinearVelocity")
+	linear.Name = "FlightVelocity"
+	linear.Attachment0 = attachment
+	linear.RelativeTo = Enum.ActuatorRelativeTo.World
+	linear.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+	linear.MaxForce = math.huge
+	linear.VectorVelocity = Vector3.zero
+	linear.Parent = root
+
+	local align = Instance.new("AlignOrientation")
+	align.Name = "FlightOrientation"
+	align.Attachment0 = attachment
+	align.Mode = Enum.OrientationAlignmentMode.OneAttachment
+	align.RigidityEnabled = true
+	align.CFrame = root.CFrame.Rotation
+	align.Parent = root
+
+	self.attachment = attachment
+	self.linear = linear
+	self.align = align
+	return self
+end
+
+function FlightController:IsValid(): boolean
+	return self.root.Parent ~= nil and self.character.Parent ~= nil
+end
+
+-- Setzt den Gleiter an eine Position (Start / Checkpoint) und stoppt ihn.
+function FlightController:Reset(cf: CFrame)
+	local look = cf.LookVector
+	self.yaw = math.atan2(-look.X, -look.Z)
+	self.pitch = 0
+	self.bank = 0
+	self.steer = 0
+	self.climb = 0
+	self.speed = F.BaseSpeed
+	self.velocity = Vector3.zero
+	self.throttle = 1
+	self.active = false
+
+	local rotation = CFrame.Angles(0, self.yaw, 0)
+	local target = CFrame.new(cf.Position) * rotation
+	self.character:PivotTo(target)
+	self.root.AssemblyLinearVelocity = Vector3.zero
+	self.root.AssemblyAngularVelocity = Vector3.zero
+	self.linear.VectorVelocity = Vector3.zero
+	self.align.CFrame = rotation
+end
+
+-- true = fliegt los, false = sofort anhalten und schweben (Crash, Countdown)
+function FlightController:SetActive(active: boolean)
+	self.active = active
+	if active then
+		-- Mit etwas Schwung starten, statt aus dem Stand
+		self.velocity = self:GetFlightCFrame().LookVector * (F.BaseSpeed * 0.5)
+	else
+		self.velocity = Vector3.zero
+		self.linear.VectorVelocity = Vector3.zero
+	end
+end
+
+-- Sanft bis zum Stillstand abbremsen (nach dem Ziel)
+function FlightController:Brake()
+	self.throttle = 0
+end
+
+function FlightController:GetFlightCFrame(): CFrame
+	return CFrame.Angles(0, self.yaw, 0) * CFrame.Angles(self.pitch, 0, 0)
+end
+
+function FlightController:GetPosition(): Vector3
+	return self.root.Position
+end
+
+function FlightController:GetRootCFrame(): CFrame
+	return self.root.CFrame
+end
+
+function FlightController:GetVelocity(): Vector3
+	return self.velocity
+end
+
+function FlightController:GetSpeed(): number
+	return self.velocity.Magnitude
+end
+
+function FlightController:Update(dt: number, input: Vector2)
+	if not self.active then
+		self.linear.VectorVelocity = Vector3.zero
+		return
+	end
+
+	-- 1) Eingabe glätten -> weiche, aber direkte Reaktion
+	self.steer += (input.X - self.steer) * smoothAlpha(F.SteerResponse, dt)
+	self.climb += (input.Y - self.climb) * smoothAlpha(F.PitchResponse, dt)
+
+	-- 2) Kurs ändern (rechts lenken = Yaw nach rechts = negativer Winkel)
+	self.yaw -= self.steer * math.rad(F.MaxYawRate) * dt
+
+	-- 3) Nick- und Schräglage
+	local targetPitch = self.climb * math.rad(F.MaxPitchAngle)
+	self.pitch += (targetPitch - self.pitch) * smoothAlpha(F.PitchVisualResponse, dt)
+	local targetBank = -self.steer * math.rad(F.MaxBankAngle)
+	self.bank += (targetBank - self.bank) * smoothAlpha(F.BankResponse, dt)
+
+	-- 4) Tempo: im Sturzflug schneller, beim Steigen langsamer
+	local pitchFraction = self.pitch / math.rad(F.MaxPitchAngle)
+	local targetSpeed = F.BaseSpeed
+	if pitchFraction < 0 then
+		targetSpeed += -pitchFraction * F.DiveSpeedBonus
+	else
+		targetSpeed -= pitchFraction * F.ClimbSpeedPenalty
+	end
+	targetSpeed = math.clamp(targetSpeed, F.MinSpeed, F.MaxSpeed) * self.throttle
+	local speedResponse = self.throttle > 0 and F.SpeedResponse or (3 / F.FinishBrakeTime)
+	self.speed += (targetSpeed - self.speed) * smoothAlpha(speedResponse, dt)
+
+	-- 5) Geschwindigkeit folgt der Flugrichtung mit leichter Trägheit
+	local flight = self:GetFlightCFrame()
+	local desired = flight.LookVector * self.speed - Vector3.new(0, F.SinkRate * self.throttle, 0)
+	self.velocity = self.velocity:Lerp(desired, smoothAlpha(F.VelocityResponse, dt))
+	self.linear.VectorVelocity = self.velocity
+
+	-- 6) Sichtbare Ausrichtung: Kurs + abgeschwächtes Nicken + Schräglage
+	self.align.CFrame = CFrame.Angles(0, self.yaw, 0)
+		* CFrame.Angles(self.pitch * F.VisualPitchFactor, 0, 0)
+		* CFrame.Angles(0, 0, self.bank)
+end
+
+function FlightController:GetBank(): number
+	return self.bank
+end
+
+function FlightController:GetYaw(): number
+	return self.yaw
+end
+
+function FlightController:GetPitch(): number
+	return self.pitch
+end
+
+function FlightController:Destroy()
+	self.active = false
+	self.linear:Destroy()
+	self.align:Destroy()
+	self.attachment:Destroy()
+end
+
+return FlightController
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="15">
+          <Properties>
+            <string name="Name">HUD</string>
+            <string name="Source"><![CDATA[-- HUD (ModuleScript)
+-- Ort: StarterPlayerScripts > GliderClient > HUD
+--
+-- Sehr einfache Test-Oberfläche, komplett per Code erstellt:
+-- Tempo, Zeit, Checkpoint, Bestzeit, Reset-Button, Meldungen in der Mitte.
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+
+local HUD = {}
+HUD.__index = HUD
+
+local function label(parent: Instance, name: string, position: UDim2, size: UDim2, textSize: number): TextLabel
+	local l = Instance.new("TextLabel")
+	l.Name = name
+	l.Position = position
+	l.Size = size
+	l.BackgroundTransparency = 1
+	l.Font = Enum.Font.GothamBold
+	l.TextSize = textSize
+	l.TextColor3 = Color3.new(1, 1, 1)
+	l.TextStrokeTransparency = 0.4
+	l.TextXAlignment = Enum.TextXAlignment.Left
+	l.Text = ""
+	l.Parent = parent
+	return l
+end
+
+function HUD.formatTime(seconds: number): string
+	local minutes = math.floor(seconds / 60)
+	local rest = seconds - minutes * 60
+	return string.format("%02d:%05.2f", minutes, rest)
+end
+
+function HUD.new(onReset: () -> ())
+	local self = setmetatable({}, HUD)
+	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "GliderHUD"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+	-- Roter Blitz beim Crash
+	local flash = Instance.new("Frame")
+	flash.Name = "Flash"
+	flash.Size = UDim2.fromScale(1, 1)
+	flash.BackgroundColor3 = Color3.fromRGB(255, 40, 40)
+	flash.BackgroundTransparency = 1
+	flash.BorderSizePixel = 0
+	flash.ZIndex = 0
+	flash.Parent = gui
+
+	-- Info-Box oben links
+	local panel = Instance.new("Frame")
+	panel.Name = "Info"
+	panel.Position = UDim2.new(0, 16, 0, 56)
+	panel.Size = UDim2.new(0, 230, 0, 118)
+	panel.BackgroundColor3 = Color3.new(0, 0, 0)
+	panel.BackgroundTransparency = 0.55
+	panel.BorderSizePixel = 0
+	panel.Parent = gui
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = panel
+
+	self.speed = label(panel, "Speed", UDim2.new(0, 12, 0, 6), UDim2.new(1, -24, 0, 30), 24)
+	self.time = label(panel, "Time", UDim2.new(0, 12, 0, 36), UDim2.new(1, -24, 0, 26), 20)
+	self.checkpoint = label(panel, "Checkpoint", UDim2.new(0, 12, 0, 62), UDim2.new(1, -24, 0, 24), 16)
+	self.best = label(panel, "Best", UDim2.new(0, 12, 0, 88), UDim2.new(1, -24, 0, 22), 14)
+	self.best.TextColor3 = Color3.fromRGB(255, 220, 90)
+	self.best.Text = "Bestzeit: --:--.--"
+
+	-- Reset-Button oben rechts
+	local button = Instance.new("TextButton")
+	button.Name = "ResetButton"
+	button.AnchorPoint = Vector2.new(1, 0)
+	button.Position = UDim2.new(1, -16, 0, 56)
+	button.Size = UDim2.new(0, 130, 0, 44)
+	button.BackgroundColor3 = Color3.fromRGB(220, 70, 50)
+	button.BorderSizePixel = 0
+	button.Font = Enum.Font.GothamBold
+	button.TextSize = 18
+	button.TextColor3 = Color3.new(1, 1, 1)
+	button.Text = "Reset (R)"
+	button.Parent = gui
+	local buttonCorner = Instance.new("UICorner")
+	buttonCorner.CornerRadius = UDim.new(0, 8)
+	buttonCorner.Parent = button
+	button.Activated:Connect(onReset)
+
+	-- Meldung in der Mitte (Countdown, CRASH, Ziel...)
+	local message = label(gui, "Message", UDim2.fromScale(0, 0.28), UDim2.new(1, 0, 0, 70), 54)
+	message.TextXAlignment = Enum.TextXAlignment.Center
+	message.Font = Enum.Font.GothamBlack
+	local sub = label(gui, "SubMessage", UDim2.new(0, 0, 0.28, 72), UDim2.new(1, 0, 0, 30), 22)
+	sub.TextXAlignment = Enum.TextXAlignment.Center
+
+	-- Steuerungshinweis unten
+	local hint = label(gui, "Hint", UDim2.new(0, 0, 1, -40), UDim2.new(1, 0, 0, 24), 16)
+	hint.TextXAlignment = Enum.TextXAlignment.Center
+	hint.TextTransparency = 0.25
+	hint.Text = "A / D = lenken   ·   W / S = hoch / runter   ·   R = Neustart"
+
+	gui.Parent = playerGui
+
+	self.gui = gui
+	self.flash = flash
+	self.message = message
+	self.subMessage = sub
+	self._lastSpeed = -1
+	self._lastTime = ""
+	self._messageToken = 0
+	return self
+end
+
+function HUD:SetSpeed(speed: number)
+	local rounded = math.floor(speed + 0.5)
+	if rounded ~= self._lastSpeed then
+		self._lastSpeed = rounded
+		self.speed.Text = string.format("%d studs/s", rounded)
+	end
+end
+
+function HUD:SetTime(seconds: number)
+	local text = HUD.formatTime(seconds)
+	if text ~= self._lastTime then
+		self._lastTime = text
+		self.time.Text = "Zeit: " .. text
+	end
+end
+
+function HUD:SetCheckpoint(current: number, total: number, label: string?)
+	local text = string.format("Checkpoint %d / %d", current, total)
+	if label then
+		text ..= "  (" .. label .. ")"
+	end
+	self.checkpoint.Text = text
+end
+
+function HUD:SetBest(seconds: number?)
+	self.best.Text = "Bestzeit: " .. (seconds and HUD.formatTime(seconds) or "--:--.--")
+end
+
+-- Zeigt eine Meldung; duration = nil -> bleibt stehen
+function HUD:ShowMessage(text: string, duration: number?, color: Color3?, subText: string?)
+	self._messageToken += 1
+	local token = self._messageToken
+	self.message.Text = text
+	self.message.TextColor3 = color or Color3.new(1, 1, 1)
+	self.message.TextTransparency = 0
+	self.subMessage.Text = subText or ""
+	self.subMessage.TextTransparency = 0
+	if duration then
+		task.delay(duration, function()
+			if self._messageToken == token then
+				self.message.Text = ""
+				self.subMessage.Text = ""
+			end
+		end)
+	end
+end
+
+function HUD:ClearMessage()
+	self._messageToken += 1
+	self.message.Text = ""
+	self.subMessage.Text = ""
+end
+
+function HUD:Flash(color: Color3?)
+	self.flash.BackgroundColor3 = color or Color3.fromRGB(255, 40, 40)
+	self.flash.BackgroundTransparency = 0.45
+	TweenService:Create(self.flash, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundTransparency = 1,
+	}):Play()
+end
+
+return HUD
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="16">
+          <Properties>
+            <string name="Name">InputController</string>
+            <string name="Source"><![CDATA[-- InputController (ModuleScript)
+-- Ort: StarterPlayerScripts > GliderClient > InputController
+--
+-- Sammelt alle Eingabequellen und liefert EINEN Steuer-Vektor:
+--   X = -1 (links) .. +1 (rechts)
+--   Y = -1 (runter) .. +1 (hoch)
+--
+-- Der Rest des Spiels kennt nur diesen Vektor. Neue Eingabearten (Mobile-
+-- Joystick, Neigungssensor, ...) müssen nur SetExternalInput() aufrufen oder
+-- hier eine weitere Quelle ergänzen; FlightController bleibt unverändert.
+
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("GliderShared"):WaitForChild("Config"))
+
+local KEYS_LEFT = { Enum.KeyCode.A, Enum.KeyCode.Left }
+local KEYS_RIGHT = { Enum.KeyCode.D, Enum.KeyCode.Right }
+local KEYS_UP = { Enum.KeyCode.W, Enum.KeyCode.Up }
+local KEYS_DOWN = { Enum.KeyCode.S, Enum.KeyCode.Down }
+
+local InputController = {}
+InputController.__index = InputController
+
+function InputController.new(onRestart: () -> ())
+	local self = setmetatable({}, InputController)
+	self._gamepad = Vector2.zero
+	self._external = Vector2.zero
+	self._connections = {} :: { RBXScriptConnection }
+
+	-- Gamepad-Stick (Controller funktioniert damit schon jetzt)
+	table.insert(self._connections, UserInputService.InputChanged:Connect(function(input)
+		if input.KeyCode == Enum.KeyCode.Thumbstick1 then
+			local p = Vector2.new(input.Position.X, input.Position.Y)
+			if p.Magnitude < Config.Input.GamepadDeadzone then
+				p = Vector2.zero
+			end
+			self._gamepad = p
+		end
+	end))
+	table.insert(self._connections, UserInputService.InputEnded:Connect(function(input)
+		if input.KeyCode == Enum.KeyCode.Thumbstick1 then
+			self._gamepad = Vector2.zero
+		end
+	end))
+
+	-- Neustart: R-Taste oder Y/Select am Controller
+	table.insert(self._connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then
+			return
+		end
+		if input.KeyCode == Config.Run.RestartKey or input.KeyCode == Enum.KeyCode.ButtonY or input.KeyCode == Enum.KeyCode.ButtonSelect then
+			onRestart()
+		end
+	end))
+
+	return self
+end
+
+local function anyDown(keys: { Enum.KeyCode }): boolean
+	for _, key in keys do
+		if UserInputService:IsKeyDown(key) then
+			return true
+		end
+	end
+	return false
+end
+
+function InputController:_keyboard(): Vector2
+	-- Während im Chat getippt wird, nicht lenken
+	if UserInputService:GetFocusedTextBox() then
+		return Vector2.zero
+	end
+	local x, y = 0, 0
+	if anyDown(KEYS_LEFT) then
+		x -= 1
+	end
+	if anyDown(KEYS_RIGHT) then
+		x += 1
+	end
+	if anyDown(KEYS_UP) then
+		y += 1
+	end
+	if anyDown(KEYS_DOWN) then
+		y -= 1
+	end
+	return Vector2.new(x, y)
+end
+
+-- Für spätere Mobile-/Touch-Steuerung: Wert -1..1 pro Achse setzen.
+function InputController:SetExternalInput(value: Vector2)
+	self._external = value
+end
+
+-- Wird einmal pro Frame vom RunManager abgefragt.
+function InputController:GetMoveVector(): Vector2
+	local sum = self:_keyboard() + self._gamepad + self._external
+	local x = math.clamp(sum.X, -1, 1)
+	local y = math.clamp(sum.Y, -1, 1)
+	if Config.Input.InvertPitch then
+		y = -y
+	end
+	return Vector2.new(x, y)
+end
+
+function InputController:Destroy()
+	for _, connection in self._connections do
+		connection:Disconnect()
+	end
+	table.clear(self._connections)
+end
+
+return InputController
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="17">
+          <Properties>
+            <string name="Name">RunManager</string>
+            <string name="Source"><![CDATA[-- RunManager (ModuleScript)
+-- Ort: StarterPlayerScripts > GliderClient > RunManager
+--
+-- Steuert den Ablauf eines Runs als einfache Zustandsmaschine:
+--
+--   Countdown -> Flying -> (Crash -> Respawning -> Flying)* -> Finished
+--
+-- Hier läuft die EINZIGE Frame-Schleife der Spiellogik (PreSimulation, also
+-- direkt vor dem Physik-Schritt). Kamera und UI hängen sich daran.
+
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("GliderShared"):WaitForChild("Config"))
+local FlightController = require(script.Parent.FlightController)
+local CheckpointSystem = require(script.Parent.CheckpointSystem)
+local CrashSystem = require(script.Parent.CrashSystem)
+local HUD = require(script.Parent.HUD)
+
+local GREEN = Color3.fromRGB(90, 255, 130)
+local RED = Color3.fromRGB(255, 70, 60)
+local YELLOW = Color3.fromRGB(255, 220, 80)
+
+-- Zustände, in denen die Zeit läuft (Crash zählt als Zeitstrafe mit)
+local TIMER_STATES = { Flying = true, Crashed = true, Respawning = true }
+
+local RunManager = {}
+RunManager.__index = RunManager
+
+export type Deps = {
+	map: Model,
+	trackData: Folder,
+	hud: any,
+	input: any,
+	camera: any,
+	effects: any,
+}
+
+function RunManager.new(deps: Deps)
+	local self = setmetatable({}, RunManager)
+	self.hud = deps.hud
+	self.input = deps.input
+	self.camera = deps.camera
+	self.effects = deps.effects
+	self.checkpoints = CheckpointSystem.new(deps.trackData, deps.map)
+	self.crash = CrashSystem.new(deps.map)
+
+	self.state = "Idle" :: string
+	self.token = 0 -- wird bei jedem Neustart erhöht; alte verzögerte Aufrufe verfallen
+	self.time = 0
+	self.best = nil :: number?
+	self.flight = nil :: any
+	self.prevPos = Vector3.zero
+
+	self._connection = RunService.PreSimulation:Connect(function(dt)
+		self:_step(dt)
+	end)
+	return self
+end
+
+-------------------------------------------------------------------------------
+-- Charakter
+-------------------------------------------------------------------------------
+
+function RunManager:AttachCharacter(character: Model)
+	self:DetachCharacter()
+	local flight = FlightController.new(character)
+	self.flight = flight
+	self.crash:SetCharacter(character)
+	self.camera:SetTarget(flight)
+	self:StartRun()
+end
+
+function RunManager:DetachCharacter()
+	self.token += 1
+	self.state = "Idle" :: string
+	if self.flight then
+		self.flight:Destroy()
+		self.flight = nil
+	end
+end
+
+-------------------------------------------------------------------------------
+-- Ablauf
+-------------------------------------------------------------------------------
+
+function RunManager:_placeAt(cf: CFrame)
+	self.flight:Reset(cf)
+	self.crash:RestoreVisuals()
+	self.camera:Snap()
+	self.prevPos = cf.Position
+end
+
+function RunManager:_beginFlying()
+	self.state = "Flying"
+	self.prevPos = self.flight:GetPosition()
+	self.flight:SetActive(true)
+end
+
+-- Neuer Run vom Start (auch für Reset-Button / R-Taste)
+function RunManager:StartRun()
+	if not self.flight then
+		return
+	end
+	self.token += 1
+	local token = self.token
+
+	self.state = "Countdown"
+	self.time = 0
+	self.checkpoints:Reset()
+	self:_placeAt(self.checkpoints:GetStartCFrame())
+	self.hud:SetTime(0)
+	self.hud:SetCheckpoint(0, self.checkpoints:GetCount())
+
+	task.spawn(function()
+		for i = Config.Run.CountdownSeconds, 1, -1 do
+			if self.token ~= token then
+				return
+			end
+			self.hud:ShowMessage(tostring(i), nil, YELLOW)
+			task.wait(1)
+		end
+		if self.token ~= token then
+			return
+		end
+		self.hud:ShowMessage("LOS!", 0.8, GREEN)
+		self:_beginFlying()
+	end)
+end
+
+function RunManager:_onCrash(reason: string?)
+	-- Nur aus dem Flug heraus -> derselbe Crash kann nicht mehrfach auslösen
+	if self.state ~= "Flying" then
+		return
+	end
+	self.state = "Crashed"
+	local token = self.token
+
+	self.flight:SetActive(false)
+	self.crash:PlayEffect(self.flight:GetPosition())
+	self.camera:Shake()
+	self.hud:Flash(RED)
+	self.hud:ShowMessage("CRASH!", nil, RED, reason)
+
+	task.delay(Config.Crash.RespawnDelay, function()
+		if self.token ~= token or (self.state :: string) ~= "Crashed" then
+			return
+		end
+		self:_placeAt(self.checkpoints:GetRespawnCFrame())
+		self.state = "Respawning"
+		self.hud:ShowMessage("Weiter...", nil, Color3.new(1, 1, 1))
+
+		task.delay(Config.Crash.FreezeAfterRespawn, function()
+			if self.token ~= token or (self.state :: string) ~= "Respawning" then
+				return
+			end
+			self.hud:ClearMessage()
+			self:_beginFlying()
+		end)
+	end)
+end
+
+function RunManager:_onFinish()
+	self.state = "Finished"
+	self.flight:Brake()
+
+	local isBest = self.best == nil or self.time < self.best
+	if isBest then
+		self.best = self.time
+		self.hud:SetBest(self.best)
+	end
+	self.hud:SetCheckpoint(self.checkpoints:GetCount(), self.checkpoints:GetCount(), "Ziel")
+	self.hud:ShowMessage(
+		"ZIEL!  " .. HUD.formatTime(self.time),
+		nil,
+		GREEN,
+		(isBest and "Neue Bestzeit!  " or "") .. "R oder Reset = neuer Run"
+	)
+end
+
+-------------------------------------------------------------------------------
+-- Frame-Schleife
+-------------------------------------------------------------------------------
+
+function RunManager:_step(dt: number)
+	local flight = self.flight
+	if not flight then
+		return
+	end
+	if not flight:IsValid() then
+		self:DetachCharacter()
+		return
+	end
+
+	local state = self.state
+	local input = if state == "Flying" then self.input:GetMoveVector() else Vector2.zero
+	flight:Update(dt, input)
+
+	if TIMER_STATES[state] then
+		self.time += dt
+	end
+
+	if state == "Flying" then
+		local position = flight:GetPosition()
+		local crashed, reason = self.crash:Check(self.prevPos, flight:GetRootCFrame(), flight:GetVelocity(), dt)
+		if crashed then
+			self:_onCrash(reason)
+		else
+			local event = self.checkpoints:Update(self.prevPos, position)
+			if event == "checkpoint" then
+				local index = self.checkpoints:GetCurrent()
+				self.hud:SetCheckpoint(index, self.checkpoints:GetCount(), self.checkpoints:GetCurrentLabel())
+				self.hud:ShowMessage("Checkpoint " .. index, 1, Color3.fromRGB(110, 220, 255))
+			elseif event == "finish" then
+				self:_onFinish()
+			end
+			self.prevPos = position
+		end
+	end
+
+	self.hud:SetSpeed(flight:GetSpeed())
+	self.hud:SetTime(self.time)
+	self.effects:Update(flight:GetSpeed(), self.state == "Flying" or self.state == "Finished")
+end
+
+function RunManager:Destroy()
+	self:DetachCharacter()
+	self._connection:Disconnect()
+end
+
+return RunManager
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="18">
+          <Properties>
+            <string name="Name">SpeedEffects</string>
+            <string name="Source"><![CDATA[-- SpeedEffects (ModuleScript)
+-- Ort: StarterPlayerScripts > GliderClient > SpeedEffects
+--
+-- Kleine Wind-Partikel, die vor der Kamera entstehen und in der Welt stehen
+-- bleiben. Weil man mit hohem Tempo hindurchfliegt, ziehen sie vorbei und
+-- verstärken das Geschwindigkeitsgefühl. Nur lokal, ein einziger Emitter.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("GliderShared"):WaitForChild("Config"))
+local F = Config.Flight
+local FX = Config.Effects
+
+local SpeedEffects = {}
+SpeedEffects.__index = SpeedEffects
+
+function SpeedEffects.new()
+	local self = setmetatable({}, SpeedEffects)
+	self.enabled = FX.SpeedParticlesEnabled
+	if not self.enabled then
+		return self
+	end
+
+	local part = Instance.new("Part")
+	part.Name = "GliderWindEmitter"
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.Transparency = 1
+	part.Size = Vector3.new(50, 30, 10)
+	part.Parent = workspace.CurrentCamera -- wird nicht repliziert
+
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Shape = Enum.ParticleEmitterShape.Box
+	emitter.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
+	emitter.Speed = NumberRange.new(0)
+	emitter.Lifetime = NumberRange.new(0.9, 1.3)
+	emitter.Size = NumberSequence.new(0.12)
+	emitter.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.15, 0.35),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	emitter.LightEmission = 1
+	emitter.Color = ColorSequence.new(Color3.new(1, 1, 1))
+	emitter.Rate = 0
+	emitter.Parent = part
+
+	self.part = part
+	self.emitter = emitter
+	self._lastRate = 0
+	return self
+end
+
+function SpeedEffects:Update(speed: number, active: boolean)
+	if not self.enabled then
+		return
+	end
+	local camera = workspace.CurrentCamera
+	self.part.CFrame = camera.CFrame * CFrame.new(0, 0, -70)
+
+	local rate = 0
+	if active then
+		local fraction = math.clamp((speed - F.MinSpeed) / (F.MaxSpeed - F.MinSpeed), 0, 1)
+		rate = math.floor(FX.SpeedParticlesMaxRate * (0.3 + 0.7 * fraction))
+	end
+	if rate ~= self._lastRate then
+		self._lastRate = rate
+		self.emitter.Rate = rate
+	end
+end
+
+function SpeedEffects:Destroy()
+	if self.part then
+		self.part:Destroy()
+	end
+end
+
+return SpeedEffects
+]]></string>
+          </Properties>
+        </Item>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="Workspace" referent="19">
+    <Properties>
+      <string name="Name">Workspace</string>
+      <bool name="NeedsPivotMigration">false</bool>
+      <bool name="StreamingEnabled">false</bool>
+    </Properties>
+  </Item>
+</roblox>

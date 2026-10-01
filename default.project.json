@@ -1,0 +1,28 @@
+{
+  "name": "GliderPrototype",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "GliderShared": {
+        "$path": "src/shared"
+      }
+    },
+    "ServerScriptService": {
+      "GliderServer": {
+        "$path": "src/server/GliderServer"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "GliderClient": {
+          "$path": "src/client/GliderClient"
+        }
+      }
+    },
+    "Workspace": {
+      "$properties": {
+        "StreamingEnabled": false
+      }
+    }
+  }
+}
