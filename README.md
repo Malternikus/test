@@ -1,3 +1,6 @@
+> **Neu: [VOID DICE](VoidDice/README.md)** – das RNG-/Collection-Spiel liegt als eigenes Rojo-Projekt im Ordner `VoidDice/`.
+> Der Gleiter-Prototyp unten ist unverändert.
+
 # Gleiter-Prototyp (Roblox)
 
 Erster lokaler Test-Prototyp: Der Spieler hängt unter einem Hängegleiter und
