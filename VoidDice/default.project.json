@@ -1,0 +1,46 @@
+{
+  "name": "VoidDice",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "VoidDice": {
+        "$path": "src/shared"
+      }
+    },
+    "ServerScriptService": {
+      "VoidDiceServer": {
+        "$path": "src/server/VoidDiceServer"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "VoidDiceClient": {
+          "$path": "src/client/VoidDiceClient"
+        }
+      }
+    },
+    "Players": {
+      "$properties": {
+        "CharacterAutoLoads": true
+      }
+    },
+    "Workspace": {
+      "$properties": {
+        "StreamingEnabled": true
+      }
+    },
+    "Lighting": {
+      "$properties": {
+        "ClockTime": 0.5,
+        "Brightness": 1.5,
+        "Ambient": [0.18, 0.16, 0.28],
+        "OutdoorAmbient": [0.22, 0.2, 0.34]
+      }
+    },
+    "SoundService": {
+      "$properties": {
+        "RespectFilteringEnabled": true
+      }
+    }
+  }
+}
